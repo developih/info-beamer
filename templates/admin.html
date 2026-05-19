@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Signage Admin</title>
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --bg:       #0f1117;
+      --surface:  #1a1d27;
+      --border:   #2a2d3a;
+      --accent:   #4f7cff;
+      --danger:   #e05555;
+      --text:     #e8eaf0;
+      --muted:    #6b7080;
+      --radius:   10px;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: system-ui, -apple-system, sans-serif;
+      font-size: 14px;
+      line-height: 1.5;
+      padding: 32px 16px;
+      min-height: 100vh;
+    }
+
+    .page { max-width: 760px; margin: 0 auto; display: flex; flex-direction: column; gap: 24px; }
+
+    h1 { font-size: 22px; font-weight: 700; }
+    h1 span { color: var(--muted); font-weight: 400; font-size: 14px; margin-left: 10px; }
+
+    /* ── Card ── */
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; }
+    .card-title { font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 20px; }
+
+    /* ── Form ── */
+    .fields { display: flex; flex-direction: column; gap: 14px; }
+    label { display: flex; flex-direction: column; gap: 5px; font-size: 13px; color: var(--muted); }
+    input[type=text], input[type=password], select {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      padding: 9px 12px;
+      font-size: 14px;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    input[type=text]:focus, input[type=password]:focus, select:focus { border-color: var(--accent); }
+    select option { background: var(--bg); }
+
+    /* ── Buttons ── */
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+      padding: 9px 18px; border-radius: 6px; font-size: 13px; font-weight: 600;
+      cursor: pointer; border: none; transition: opacity 0.15s;
+    }
+    .btn:hover { opacity: 0.85; }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-danger  { background: transparent; border: 1px solid var(--danger); color: var(--danger); padding: 6px 12px; font-size: 12px; }
+    .btn-ghost   { background: transparent; border: 1px solid var(--border); color: var(--text); }
+
+    /* ── Logo preview ── */
+    .logo-row { display: flex; align-items: center; gap: 20px; }
+    .logo-preview {
+      width: 140px; height: 80px;
+      border: 1px dashed var(--border);
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+    .logo-preview img { max-width: 100%; max-height: 100%; object-fit: contain; }
+    .logo-preview.empty { color: var(--muted); font-size: 12px; text-align: center; padding: 8px; }
+    .logo-actions { display: flex; flex-direction: column; gap: 8px; }
+
+    /* ── Drop zone ── */
+    .dropzone {
+      border: 2px dashed var(--border);
+      border-radius: var(--radius);
+      padding: 28px 20px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
+      position: relative;
+    }
+    .dropzone.over { border-color: var(--accent); background: rgba(79,124,255,0.06); }
+    .dropzone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+    .dropzone p { color: var(--muted); font-size: 13px; }
+    .dropzone strong { color: var(--text); }
+
+    /* ── Progress bar ── */
+    .progress-wrap { display: none; margin-top: 12px; }
+    .progress-wrap.visible { display: block; }
+    .progress-bar-track { background: var(--border); border-radius: 4px; height: 6px; overflow: hidden; }
+    .progress-bar-fill { background: var(--accent); height: 100%; width: 0; transition: width 0.2s; border-radius: 4px; }
+    .progress-label { font-size: 12px; color: var(--muted); margin-top: 6px; }
+
+    /* ── Video list ── */
+    .video-list { display: flex; flex-direction: column; gap: 8px; margin-top: 16px; }
+    .video-item {
+      display: flex; align-items: center; justify-content: space-between;
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: 8px; padding: 10px 14px; gap: 12px;
+    }
+    .video-name { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; }
+    .video-order { font-size: 11px; color: var(--muted); background: var(--border); border-radius: 4px; padding: 2px 7px; }
+
+    .empty-state { color: var(--muted); font-size: 13px; text-align: center; padding: 20px 0; }
+
+    /* ── Toast ── */
+    #toast {
+      position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(80px);
+      background: #2a2d3a; border: 1px solid var(--border); border-radius: 8px;
+      padding: 10px 20px; font-size: 13px; color: var(--text);
+      transition: transform 0.25s ease; z-index: 999; white-space: nowrap;
+    }
+    #toast.show { transform: translateX(-50%) translateY(0); }
+    #toast.error { border-color: var(--danger); color: var(--danger); }
+
+    /* ── Status dot ── */
+    .row { display: flex; align-items: center; gap: 10px; }
+    .save-row { margin-top: 20px; }
+  </style>
+</head>
+<body>
+<div class="page">
+
+  <div class="row" style="justify-content:space-between; align-items:flex-end;">
+    <h1>Signage Admin <span>manage display</span></h1>
+    <a href="/" target="_blank" class="btn btn-ghost" style="text-decoration:none">View display ↗</a>
+  </div>
+
+  <!-- ── Settings ── -->
+  <div class="card">
+    <div class="card-title">Settings</div>
+    <div class="fields">
+      <label>
+        City (for weather)
+        <input type="text" id="cfg-city" value="{{ config.city or '' }}" placeholder="e.g. Buenos Aires" />
+      </label>
+      <label>
+        OpenWeatherMap API key
+        <input type="password" id="cfg-apikey" value="{{ config.weather_api_key or '' }}" placeholder="Get a free key at openweathermap.org" />
+      </label>
+      <label>
+        Display orientation
+        <select id="cfg-orientation">
+          <option value="horizontal" {% if config.orientation == 'horizontal' %}selected{% endif %}>Horizontal (landscape)</option>
+          <option value="vertical"   {% if config.orientation == 'vertical'   %}selected{% endif %}>Vertical (portrait)</option>
+        </select>
+      </label>
+      <div style="display:flex; gap:14px;">
+        <label style="flex:1;">
+          Turn ON at
+          <input type="time" id="cfg-on"  value="{{ config.schedule_on or '07:00' }}" style="background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:9px 12px;font-size:14px;outline:none;width:100%;" />
+        </label>
+        <label style="flex:1;">
+          Turn OFF at
+          <input type="time" id="cfg-off" value="{{ config.schedule_off or '19:00' }}" style="background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:9px 12px;font-size:14px;outline:none;width:100%;" />
+        </label>
+      </div>
+    </div>
+    <div class="save-row">
+      <button class="btn btn-primary" onclick="saveConfig()">Save settings</button>
+    </div>
+  </div>
+
+  <!-- ── Logo ── -->
+  <div class="card">
+    <div class="card-title">Logo</div>
+    <div class="logo-row">
+      <div class="logo-preview {% if not logo_url %}empty{% endif %}" id="logo-preview-box">
+        {% if logo_url %}
+          <img id="logo-img" src="{{ logo_url }}" alt="Logo" />
+        {% else %}
+          <span>No logo</span>
+        {% endif %}
+      </div>
+      <div class="logo-actions">
+        <label class="btn btn-ghost" style="cursor:pointer;display:inline-flex;align-items:center;gap:7px;">
+          Upload logo
+          <input type="file" accept="image/png,image/jpeg,image/svg+xml,image/webp" style="display:none" onchange="uploadLogo(this)" />
+        </label>
+        <p style="color:var(--muted);font-size:12px;">PNG, JPG, SVG — transparent PNG recommended</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Videos ── -->
+  <div class="card">
+    <div class="card-title">Videos</div>
+
+    <div class="dropzone" id="dropzone">
+      <input type="file" accept="video/mp4,video/webm,video/quicktime,video/x-msvideo,video/x-matroska" multiple onchange="uploadVideos(this.files)" />
+      <p><strong>Click to select</strong> or drag &amp; drop videos here</p>
+      <p style="margin-top:4px;">MP4 · WebM · MOV · AVI · MKV</p>
+    </div>
+
+    <div class="progress-wrap" id="progress-wrap">
+      <div class="progress-bar-track"><div class="progress-bar-fill" id="progress-fill"></div></div>
+      <div class="progress-label" id="progress-label"></div>
+    </div>
+
+    <div class="video-list" id="video-list">
+      {% if videos %}
+        {% for v in videos %}
+          <div class="video-item" id="vi-{{ loop.index0 }}">
+            <span class="video-order">#{{ loop.index }}</span>
+            <span class="video-name" title="{{ v }}">{{ v }}</span>
+            <button class="btn btn-danger" onclick="deleteVideo('{{ v }}', 'vi-{{ loop.index0 }}')">Remove</button>
+          </div>
+        {% endfor %}
+      {% else %}
+        <div class="empty-state" id="empty-state">No videos yet — upload your first one above.</div>
+      {% endif %}
+    </div>
+  </div>
+
+</div><!-- /page -->
+
+<div id="toast"></div>
+
+<script>
+  // ── Toast ──────────────────────────────────────────────────────────────────
+  let toastTimer;
+  function showToast(msg, isError = false) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className = 'show' + (isError ? ' error' : '');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.className = '', 3000);
+  }
+
+  // ── Settings ───────────────────────────────────────────────────────────────
+  async function saveConfig() {
+    const body = {
+      city:            document.getElementById('cfg-city').value.trim(),
+      weather_api_key: document.getElementById('cfg-apikey').value.trim(),
+      orientation:     document.getElementById('cfg-orientation').value,
+      schedule_on:     document.getElementById('cfg-on').value,
+      schedule_off:    document.getElementById('cfg-off').value,
+    };
+    const r = await fetch('/admin/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const d = await r.json();
+    d.success ? showToast('Settings saved') : showToast(d.error || 'Error', true);
+  }
+
+  // ── Logo ────────────────────────────────────────────────────────────────────
+  async function uploadLogo(input) {
+    if (!input.files.length) return;
+    const fd = new FormData();
+    fd.append('logo', input.files[0]);
+    const r  = await fetch('/admin/upload-logo', { method: 'POST', body: fd });
+    const d  = await r.json();
+    if (d.success) {
+      const box = document.getElementById('logo-preview-box');
+      let img   = document.getElementById('logo-img');
+      if (!img) {
+        box.innerHTML = '<img id="logo-img" alt="Logo" />';
+        img = document.getElementById('logo-img');
+        box.classList.remove('empty');
+      }
+      img.src = '/assets/logo?t=' + Date.now();
+      showToast('Logo updated');
+    } else {
+      showToast(d.error || 'Upload failed', true);
+    }
+    input.value = '';
+  }
+
+  // ── Video upload (with per-file progress) ──────────────────────────────────
+  async function uploadVideos(files) {
+    if (!files.length) return;
+    const wrap  = document.getElementById('progress-wrap');
+    const fill  = document.getElementById('progress-fill');
+    const label = document.getElementById('progress-label');
+    wrap.classList.add('visible');
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      label.textContent = `Uploading ${i + 1} / ${files.length}: ${file.name}`;
+
+      await new Promise((resolve) => {
+        const fd  = new FormData();
+        fd.append('video', file);
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', '/admin/upload-video');
+        xhr.upload.onprogress = (e) => {
+          if (e.lengthComputable) {
+            const pct = Math.round((e.loaded / e.total) * 100);
+            fill.style.width = pct + '%';
+          }
+        };
+        xhr.onload = () => {
+          fill.style.width = '100%';
+          try {
+            const d = JSON.parse(xhr.responseText);
+            if (d.success) addVideoRow(d.filename);
+            else showToast(d.error || 'Upload failed', true);
+          } catch (_) { showToast('Upload failed', true); }
+          resolve();
+        };
+        xhr.onerror = () => { showToast(`Failed: ${file.name}`, true); resolve(); };
+        xhr.send(fd);
+      });
+    }
+
+    label.textContent = 'Done';
+    setTimeout(() => {
+      wrap.classList.remove('visible');
+      fill.style.width = '0';
+    }, 1500);
+    showToast(`${files.length} video${files.length > 1 ? 's' : ''} uploaded`);
+  }
+
+  function addVideoRow(filename) {
+    const list   = document.getElementById('video-list');
+    const empty  = document.getElementById('empty-state');
+    if (empty) empty.remove();
+    const count  = list.querySelectorAll('.video-item').length;
+    const id     = 'vi-' + count;
+    const div    = document.createElement('div');
+    div.className = 'video-item';
+    div.id        = id;
+    div.innerHTML = `
+      <span class="video-order">#${count + 1}</span>
+      <span class="video-name" title="${filename}">${filename}</span>
+      <button class="btn btn-danger" onclick="deleteVideo('${filename}','${id}')">Remove</button>`;
+    list.appendChild(div);
+  }
+
+  // ── Delete video ───────────────────────────────────────────────────────────
+  async function deleteVideo(filename, rowId) {
+    if (!confirm(`Remove "${filename}" from the playlist?`)) return;
+    const r = await fetch('/admin/delete-video/' + encodeURIComponent(filename), { method: 'POST' });
+    const d = await r.json();
+    if (d.success) {
+      document.getElementById(rowId)?.remove();
+      const list = document.getElementById('video-list');
+      if (!list.querySelector('.video-item')) {
+        list.innerHTML = '<div class="empty-state" id="empty-state">No videos yet — upload your first one above.</div>';
+      } else {
+        // Renumber
+        list.querySelectorAll('.video-order').forEach((el, i) => el.textContent = `#${i + 1}`);
+      }
+      showToast('Video removed');
+    } else {
+      showToast('Failed to remove', true);
+    }
+  }
+
+  // ── Drag & drop highlight ──────────────────────────────────────────────────
+  const dz = document.getElementById('dropzone');
+  dz.addEventListener('dragover',  (e) => { e.preventDefault(); dz.classList.add('over'); });
+  dz.addEventListener('dragleave', ()  => dz.classList.remove('over'));
+  dz.addEventListener('drop',      (e) => {
+    e.preventDefault();
+    dz.classList.remove('over');
+    uploadVideos(e.dataTransfer.files);
+  });
+</script>
+</body>
+</html>

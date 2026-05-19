@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Signage</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;700&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    html, body {
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      background: #000;
+      color: #fff;
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      cursor: none;
+    }
+
+    /* ── Video ── */
+    #player {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    #no-video {
+      position: fixed;
+      inset: 0;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      color: rgba(255,255,255,0.35);
+      font-size: 18px;
+    }
+    #no-video span { font-size: 13px; }
+
+    /* ── Overlay ── */
+    #overlay {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+    }
+
+    /* shared text shadow */
+    .ts {
+      text-shadow:
+        0 1px 4px rgba(0,0,0,0.9),
+        0 4px 20px rgba(0,0,0,0.6);
+    }
+
+    /* ── Elements ── */
+    #logo {
+      position: absolute;
+      object-fit: contain;
+      filter: drop-shadow(0 2px 10px rgba(0,0,0,0.7));
+    }
+    #logo.hidden { display: none; }
+
+    #clock {
+      position: absolute;
+      font-weight: 700;
+      line-height: 1;
+      letter-spacing: -0.03em;
+    }
+
+    #weather {
+      position: absolute;
+      font-weight: 300;
+      letter-spacing: 0.04em;
+      white-space: nowrap;
+    }
+    #weather #city { margin-right: 1em; }
+
+    /* ═══════════════════════════
+       HORIZONTAL LAYOUT
+    ═══════════════════════════ */
+    .horizontal #logo {
+      top: 24px;
+      right: 28px;
+      max-height: 90px;
+      max-width: 200px;
+    }
+
+    .horizontal #clock {
+      bottom: 28px;
+      left: 36px;
+      font-size: clamp(52px, 6.5vw, 88px);
+    }
+
+    .horizontal #weather {
+      bottom: 40px;
+      right: 36px;
+      font-size: clamp(16px, 1.9vw, 28px);
+    }
+
+    /* ═══════════════════════════
+       VERTICAL LAYOUT
+    ═══════════════════════════ */
+    .vertical #clock {
+      top: 64px;
+      left: 0;
+      right: 0;
+      text-align: center;
+      font-size: clamp(80px, 18vw, 160px);
+    }
+
+    .vertical #logo {
+      bottom: 130px;
+      left: 50%;
+      transform: translateX(-50%);
+      max-height: 110px;
+      max-width: 300px;
+    }
+
+    .vertical #weather {
+      bottom: 52px;
+      left: 0;
+      right: 0;
+      text-align: center;
+      font-size: clamp(16px, 3vw, 26px);
+    }
+    .vertical #weather #city { margin-right: 1.5em; }
+
+    /* ── Special day overlay ──────────────────────────────── */
+    #special-day {
+      position: absolute;
+      left: 50%;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      pointer-events: none;
+      transform: translateX(-50%);
+    }
+    #special-day.hidden { display: none; }
+
+    #sd-message {
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      white-space: nowrap;
+      text-shadow: 0 2px 16px rgba(0,0,0,0.95), 0 0 50px rgba(0,0,0,0.6);
+    }
+
+    #sd-image {
+      object-fit: contain;
+      mix-blend-mode: multiply;
+      filter: drop-shadow(0 4px 14px rgba(0,0,0,0.4));
+    }
+
+    /* Horizontal: bottom center, same strip as clock/weather */
+    .horizontal #special-day {
+      bottom: 18px;
+      gap: 6px;
+    }
+    .horizontal #sd-message { font-size: clamp(22px, 2.8vw, 38px); }
+    .horizontal #sd-image   { max-height: clamp(34px, 4.2vw, 62px); max-width: 32vw; }
+
+    /* Vertical: just below the clock */
+    .vertical #special-day {
+      top: calc(64px + clamp(80px, 18vw, 160px) + 24px);
+      gap: 14px;
+    }
+    .vertical #sd-message { font-size: clamp(20px, 5vw, 40px); }
+    .vertical #sd-image   { max-height: clamp(50px, 9vw, 100px); max-width: 72vw; }
+
+    /* ── Sleep screen ──────────────────────────────────────── */
+    #sleep {
+      position: fixed;
+      inset: 0;
+      background: #000;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 1.5s ease;
+      z-index: 100;
+    }
+    #sleep.active {
+      opacity: 1;
+      pointer-events: all;
+    }
+  </style>
+</head>
+<body>
+
+  <video id="player" autoplay muted playsinline></video>
+
+  <div id="no-video">
+    No videos loaded
+    <span>Add videos via <strong>http://[pi-ip]:8080/admin</strong></span>
+  </div>
+
+  <div id="overlay">
+    <img id="logo" src="" alt="" class="hidden" />
+    <div id="clock" class="ts">--:--</div>
+    <div id="weather" class="ts">
+      <span id="city"></span><span id="temp"></span>
+    </div>
+    <div id="special-day" class="hidden">
+      <div id="sd-message" class="ts"></div>
+      <img id="sd-image" src="" alt="" />
+    </div>
+  </div>
+
+  <!-- Black screen shown outside scheduled hours -->
+  <div id="sleep"></div>
+
+  <script>
+    const player   = document.getElementById('player');
+    const overlay  = document.getElementById('overlay');
+    const noVideo  = document.getElementById('no-video');
+    const logoEl   = document.getElementById('logo');
+    const clockEl  = document.getElementById('clock');
+    const cityEl   = document.getElementById('city');
+    const tempEl   = document.getElementById('temp');
+    const sleepEl  = document.getElementById('sleep');
+
+    let videos = [];
+    let idx    = 0;
+    let scheduleOn  = '07:00';
+    let scheduleOff = '19:00';
+
+    // ── Schedule ───────────────────────────────────────────
+    function timeToMinutes(hhmm) {
+      const [h, m] = hhmm.split(':').map(Number);
+      return h * 60 + m;
+    }
+
+    function checkSchedule() {
+      const now = new Date();
+      const cur = now.getHours() * 60 + now.getMinutes();
+      const on  = timeToMinutes(scheduleOn);
+      const off = timeToMinutes(scheduleOff);
+      const active = cur >= on && cur < off;
+      sleepEl.classList.toggle('active', !active);
+      if (active && player.paused && videos.length > 0) {
+        player.play().catch(() => {});
+      } else if (!active) {
+        player.pause();
+      }
+    }
+
+    // ── Clock ──────────────────────────────────────────────
+    function tick() {
+      const now = new Date();
+      const h = String(now.getHours()).padStart(2, '0');
+      const m = String(now.getMinutes()).padStart(2, '0');
+      clockEl.textContent = `${h}:${m}`;
+      checkSchedule();
+    }
+    tick();
+    setInterval(tick, 1000);
+
+    // ── Weather ────────────────────────────────────────────
+    async function updateWeather() {
+      try {
+        const d = await fetch('/api/weather').then(r => r.json());
+        cityEl.textContent = d.city || '';
+        tempEl.textContent = d.temp != null ? `${d.temp}°C` : '';
+      } catch (_) {}
+    }
+    updateWeather();
+    setInterval(updateWeather, 10 * 60 * 1000);
+
+    // ── Video playback ─────────────────────────────────────
+    function playAt(i) {
+      idx = ((i % videos.length) + videos.length) % videos.length;
+      player.src = '/videos/' + encodeURIComponent(videos[idx]);
+      player.load();
+      player.play().catch(() => {});
+    }
+
+    player.addEventListener('ended', () => playAt(idx + 1));
+    player.addEventListener('error', () => setTimeout(() => playAt(idx + 1), 2000));
+
+    async function loadVideos() {
+      videos = await fetch('/api/videos').then(r => r.json());
+      if (videos.length === 0) {
+        noVideo.style.display = 'flex';
+        return;
+      }
+      noVideo.style.display = 'none';
+      playAt(0);
+    }
+
+    // Poll for new videos every 30 s
+    setInterval(async () => {
+      const next = await fetch('/api/videos').then(r => r.json());
+      if (JSON.stringify(next) !== JSON.stringify(videos)) {
+        const wasEmpty = videos.length === 0;
+        videos = next;
+        if (wasEmpty && videos.length > 0) playAt(0);
+      }
+    }, 30_000);
+
+    // ── Special day ────────────────────────────────────────
+    async function loadSpecialDay() {
+      try {
+        const d = await fetch('/api/special-day').then(r => r.json());
+        const el = document.getElementById('special-day');
+        if (d && d.message) {
+          document.getElementById('sd-message').textContent = d.message;
+          if (d.image_url) {
+            const img = document.getElementById('sd-image');
+            img.src   = d.image_url;
+            img.style.display = 'block';
+          }
+          el.classList.remove('hidden');
+        } else {
+          el.classList.add('hidden');
+        }
+      } catch (_) {}
+    }
+
+    // ── Init ───────────────────────────────────────────────
+    async function init() {
+      const cfg = await fetch('/api/config').then(r => r.json());
+
+      overlay.className = cfg.orientation || 'horizontal';
+      scheduleOn  = cfg.schedule_on  || '07:00';
+      scheduleOff = cfg.schedule_off || '19:00';
+
+      if (cfg.logo_url) {
+        logoEl.src = cfg.logo_url + '?t=' + Date.now();
+        logoEl.onload  = () => logoEl.classList.remove('hidden');
+        logoEl.onerror = () => logoEl.classList.add('hidden');
+      }
+
+      await loadVideos();
+      await loadSpecialDay();
+      checkSchedule();
+
+      // Re-check at midnight in case the special day just started/ended
+      const now = new Date();
+      const msToMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1) - now;
+      setTimeout(() => { loadSpecialDay(); setInterval(loadSpecialDay, 86_400_000); }, msToMidnight);
+    }
+
+    init();
+  </script>
+</body>
+</html>

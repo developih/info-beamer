@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Signage Preview — Both Screens</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;700&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: #0a0a0f;
+      font-family: 'Inter', system-ui, sans-serif;
+      color: #fff;
+      min-height: 100vh;
+      padding: 40px 24px 60px;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 48px;
+    }
+    header h1 { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; }
+    header p  { color: #555; font-size: 13px; margin-top: 6px; }
+
+    .screens {
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      gap: 60px;
+      flex-wrap: wrap;
+    }
+
+    .screen-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 18px;
+    }
+
+    .label {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: #444;
+    }
+
+    /* ── Shared mock screen ── */
+    .screen {
+      position: relative;
+      overflow: hidden;
+      border-radius: 8px;
+      box-shadow: 0 0 0 1px rgba(255,255,255,0.07), 0 32px 80px rgba(0,0,0,0.8);
+    }
+
+    /* Simulated video frame — animated gradient */
+    .screen-bg {
+      width: 100%;
+      height: 100%;
+      position: absolute;
+      inset: 0;
+    }
+
+    /* ─ Horizontal: 16:9 scaled to 720px wide ─ */
+    .h-screen {
+      width: 720px;
+      height: 405px;
+    }
+    .h-bg {
+      background:
+        radial-gradient(ellipse at 60% 40%, rgba(20,40,80,0.95) 0%, transparent 70%),
+        radial-gradient(ellipse at 20% 70%, rgba(10,30,60,0.9) 0%, transparent 60%),
+        linear-gradient(135deg, #0d1f3c 0%, #0a1628 40%, #060e1f 100%);
+      animation: shift 12s ease-in-out infinite alternate;
+    }
+
+    /* ─ Vertical: 9:16 scaled to 320px wide ─ */
+    .v-screen {
+      width: 320px;
+      height: 568px;
+    }
+    .v-bg {
+      background:
+        radial-gradient(ellipse at 50% 30%, rgba(15,30,70,0.95) 0%, transparent 60%),
+        radial-gradient(ellipse at 80% 80%, rgba(30,10,60,0.8) 0%, transparent 55%),
+        linear-gradient(170deg, #0b1830 0%, #100820 50%, #060e1f 100%);
+      animation: shift 14s ease-in-out infinite alternate-reverse;
+    }
+
+    @keyframes shift {
+      0%   { filter: brightness(1)   hue-rotate(0deg); }
+      50%  { filter: brightness(1.1) hue-rotate(8deg); }
+      100% { filter: brightness(0.9) hue-rotate(-5deg); }
+    }
+
+    /* ── Overlay layer ── */
+    .ov {
+      position: absolute;
+      inset: 0;
+    }
+
+    /* text shadows */
+    .ts {
+      text-shadow:
+        0 1px 4px rgba(0,0,0,0.95),
+        0 4px 20px rgba(0,0,0,0.7);
+    }
+
+    /* ── Logo placeholder ── */
+    .logo-box {
+      position: absolute;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 6px;
+    }
+    .logo-text {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      color: rgba(255,255,255,0.4);
+      text-transform: uppercase;
+      filter: drop-shadow(0 1px 4px rgba(0,0,0,0.8));
+    }
+    .logo-icon {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      filter: drop-shadow(0 2px 8px rgba(0,0,0,0.7));
+    }
+
+    /* ══════════════════════════
+       HORIZONTAL OVERLAY
+    ══════════════════════════ */
+    .h-logo {
+      top: 14px;
+      right: 16px;
+      width: 110px;
+      height: 50px;
+    }
+    .h-clock {
+      position: absolute;
+      bottom: 16px;
+      left: 20px;
+      font-size: 52px;
+      font-weight: 700;
+      letter-spacing: -0.03em;
+      line-height: 1;
+    }
+    .h-weather {
+      position: absolute;
+      bottom: 24px;
+      right: 20px;
+      font-size: 17px;
+      font-weight: 300;
+      letter-spacing: 0.04em;
+      white-space: nowrap;
+    }
+    .h-weather .city { margin-right: 1em; }
+
+    /* ══════════════════════════
+       VERTICAL OVERLAY
+    ══════════════════════════ */
+    .v-clock {
+      position: absolute;
+      top: 40px;
+      left: 0; right: 0;
+      text-align: center;
+      font-size: 88px;
+      font-weight: 700;
+      letter-spacing: -0.03em;
+      line-height: 1;
+    }
+    .v-logo {
+      bottom: 68px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 120px;
+      height: 60px;
+    }
+    .v-weather {
+      position: absolute;
+      bottom: 28px;
+      left: 0; right: 0;
+      text-align: center;
+      font-size: 15px;
+      font-weight: 300;
+      letter-spacing: 0.06em;
+      white-space: nowrap;
+    }
+    .v-weather .city { margin-right: 1.5em; }
+
+    /* ── Special day overlay ── */
+    .special-day {
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      pointer-events: none;
+    }
+    .sd-message {
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      white-space: nowrap;
+      text-shadow: 0 2px 12px rgba(0,0,0,0.95), 0 0 30px rgba(0,0,0,0.6);
+    }
+    .sd-image {
+      object-fit: contain;
+      mix-blend-mode: multiply;
+      filter: drop-shadow(0 3px 8px rgba(0,0,0,0.35));
+    }
+
+    /* Horizontal: bottom center, same strip as clock/weather */
+    .h-special {
+      bottom: 12px;
+      gap: 5px;
+    }
+    .h-special .sd-message { font-size: 17px; }
+    .h-special .sd-image   { max-height: 28px; max-width: 220px; }
+
+    /* Vertical: just below the clock (clock ends at ~40+88=128px) */
+    .v-special {
+      top: 148px;
+      gap: 8px;
+    }
+    .v-special .sd-message { font-size: 16px; }
+    .v-special .sd-image   { max-height: 38px; max-width: 240px; }
+
+    /* ── Night mode badge ── */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 20px;
+      padding: 5px 12px;
+      font-size: 11px;
+      color: #888;
+      margin-top: 4px;
+    }
+    .badge .dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: #4caf82;
+    }
+    .badge .dot.off { background: #666; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Signage Preview</h1>
+  <p>Live preview of both display layouts — clock updates in real time</p>
+</header>
+
+<div class="screens">
+
+  <!-- ─── HORIZONTAL ─────────────────────────────────── -->
+  <div class="screen-wrap">
+    <div class="label">Horizontal display (landscape)</div>
+    <div class="screen h-screen">
+      <div class="screen-bg h-bg"></div>
+      <div class="ov">
+        <!-- Logo -->
+        <div class="logo-box h-logo" id="h-logo-box">
+          <span class="logo-text">Your Logo</span>
+        </div>
+        <!-- Clock -->
+        <div class="h-clock ts" id="h-clock">--:--</div>
+        <!-- Weather -->
+        <div class="h-weather ts">
+          <span class="city" id="h-city">Buenos Aires</span>
+          <span id="h-temp">18.0°C</span>
+        </div>
+        <!-- Special day -->
+        <div class="special-day h-special ts">
+          <div class="sd-message">¡Feliz día de la patria!</div>
+          <img class="sd-image" src="overlays/escarapela.png" alt="" />
+        </div>
+      </div>
+    </div>
+    <div class="badge">
+      <span class="dot" id="h-dot"></span>
+      <span id="h-status">Active hours: 07:00 – 19:00</span>
+    </div>
+  </div>
+
+  <!-- ─── VERTICAL ──────────────────────────────────── -->
+  <div class="screen-wrap">
+    <div class="label">Vertical display (portrait)</div>
+    <div class="screen v-screen">
+      <div class="screen-bg v-bg"></div>
+      <div class="ov">
+        <!-- Clock -->
+        <div class="v-clock ts" id="v-clock">--:--</div>
+        <!-- Logo -->
+        <div class="logo-box v-logo" id="v-logo-box">
+          <span class="logo-text">Your Logo</span>
+        </div>
+        <!-- Weather -->
+        <div class="v-weather ts">
+          <span class="city" id="v-city">Buenos Aires</span>
+          <span id="v-temp">18.0°C</span>
+        </div>
+        <!-- Special day -->
+        <div class="special-day v-special ts">
+          <div class="sd-message">¡Feliz día de la patria!</div>
+          <img class="sd-image" src="overlays/escarapela.png" alt="" />
+        </div>
+      </div>
+    </div>
+    <div class="badge">
+      <span class="dot" id="v-dot"></span>
+      <span id="v-status">Active hours: 07:00 – 19:00</span>
+    </div>
+  </div>
+
+</div><!-- /screens -->
+
+<script>
+  const SCHEDULE_ON  = '07:00';
+  const SCHEDULE_OFF = '19:00';
+
+  function timeToMin(hhmm) {
+    const [h, m] = hhmm.split(':').map(Number);
+    return h * 60 + m;
+  }
+
+  function tick() {
+    const now = new Date();
+    const h   = String(now.getHours()).padStart(2, '0');
+    const m   = String(now.getMinutes()).padStart(2, '0');
+    const t   = `${h}:${m}`;
+
+    document.getElementById('h-clock').textContent = t;
+    document.getElementById('v-clock').textContent = t;
+
+    const cur    = now.getHours() * 60 + now.getMinutes();
+    const active = cur >= timeToMin(SCHEDULE_ON) && cur < timeToMin(SCHEDULE_OFF);
+
+    ['h', 'v'].forEach(prefix => {
+      const dot = document.getElementById(`${prefix}-dot`);
+      const lbl = document.getElementById(`${prefix}-status`);
+      dot.className = 'dot' + (active ? '' : ' off');
+      lbl.textContent = active
+        ? `Active now — turns off at ${SCHEDULE_OFF}`
+        : `Off — turns on at ${SCHEDULE_ON}`;
+    });
+  }
+
+  tick();
+  setInterval(tick, 1000);
+
+  // Try to load weather from running server (works when opened via http://localhost:8080/preview)
+  fetch('/api/weather')
+    .then(r => r.json())
+    .then(d => {
+      if (d && d.city) {
+        ['h', 'v'].forEach(p => {
+          document.getElementById(`${p}-city`).textContent = d.city;
+          document.getElementById(`${p}-temp`).textContent =
+            d.temp != null ? `${d.temp}°C` : '';
+        });
+      }
+    })
+    .catch(() => {/* not running from server — placeholder values are fine */});
+
+  // Try to load logo from server
+  fetch('/api/config')
+    .then(r => r.json())
+    .then(cfg => {
+      if (!cfg.logo_url) return;
+      ['h-logo-box', 'v-logo-box'].forEach(id => {
+        const box = document.getElementById(id);
+        const img = document.createElement('img');
+        img.src   = cfg.logo_url + '?t=' + Date.now();
+        img.className = 'logo-icon';
+        img.onload  = () => { box.innerHTML = ''; box.appendChild(img); };
+      });
+    })
+    .catch(() => {});
+</script>
+</body>
+</html>

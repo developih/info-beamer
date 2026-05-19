@@ -1,0 +1,17 @@
+# Pi-specific — managed locally, never overwritten by git pull
+config.json
+assets/logo.*
+
+# Video files — too large for git, managed via admin panel
+videos/*
+!videos/.gitkeep
+
+# Python
+venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# Logs
+*.log
+pull.log
