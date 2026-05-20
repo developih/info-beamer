@@ -311,17 +311,27 @@
       frameHold.style.display = 'none';
     }
 
-    function playNext() {
-      holdLastFrame();
-      idx = wrap(idx + 1);
+    let transitioning = false;
+
+    function loadVideo(i) {
+      idx = wrap(i);
       player.src = '/videos/' + encodeURIComponent(videos[idx]);
-      player.play().catch(() => {});
+      player.load();
+      // play() is called from the canplay handler once data is ready
     }
 
-    // Hide the frozen frame the moment the new video's first frame is drawn
-    player.addEventListener('playing', releaseHold);
+    function playNext() {
+      if (transitioning) return;
+      transitioning = true;
+      holdLastFrame();
+      loadVideo(idx + 1);
+    }
+
+    // Only play when the browser has enough data — avoids the rejected-play error
+    player.addEventListener('canplay', () => player.play().catch(() => {}));
+    // Release the frozen frame once the new video is actually rendering
+    player.addEventListener('playing', () => { releaseHold(); transitioning = false; });
     player.addEventListener('ended',   playNext);
-    player.addEventListener('error',   () => setTimeout(playNext, 1000));
 
     async function loadVideos() {
       videos = await fetch('/api/videos').then(r => r.json());
@@ -330,9 +340,7 @@
         return;
       }
       noVideo.style.display = 'none';
-      idx = 0;
-      player.src = '/videos/' + encodeURIComponent(videos[0]);
-      player.play().catch(() => {});
+      loadVideo(0);
     }
 
     // Poll for new videos every 30 s
@@ -341,11 +349,7 @@
       if (JSON.stringify(next) !== JSON.stringify(videos)) {
         const wasEmpty = videos.length === 0;
         videos = next;
-        if (wasEmpty && videos.length > 0) {
-          idx = 0;
-          player.src = '/videos/' + encodeURIComponent(videos[0]);
-          player.play().catch(() => {});
-        }
+        if (wasEmpty && videos.length > 0) loadVideo(0);
       }
     }, 30_000);
 
