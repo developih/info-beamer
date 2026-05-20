@@ -200,8 +200,8 @@
 </head>
 <body>
 
-  <video id="player-a" class="player" muted playsinline style="z-index:2"></video>
-  <video id="player-b" class="player" muted playsinline style="z-index:1"></video>
+  <video id="player" class="player" muted playsinline preload="auto"></video>
+  <video id="preloader" muted preload="auto" style="display:none"></video>
   <div id="gradient"></div>
 
   <div id="no-video">
@@ -225,18 +225,15 @@
   <div id="sleep"></div>
 
   <script>
-    const playerA  = document.getElementById('player-a');
-    const playerB  = document.getElementById('player-b');
-    const overlay  = document.getElementById('overlay');
-    const noVideo  = document.getElementById('no-video');
-    const logoEl   = document.getElementById('logo');
-    const clockEl  = document.getElementById('clock');
-    const cityEl   = document.getElementById('city');
-    const tempEl   = document.getElementById('temp');
-    const sleepEl  = document.getElementById('sleep');
-
-    let active = playerA;   // currently visible player
-    let standby = playerB;  // preloading next video
+    const player    = document.getElementById('player');
+    const preloader = document.getElementById('preloader');
+    const overlay   = document.getElementById('overlay');
+    const noVideo   = document.getElementById('no-video');
+    const logoEl    = document.getElementById('logo');
+    const clockEl   = document.getElementById('clock');
+    const cityEl    = document.getElementById('city');
+    const tempEl    = document.getElementById('temp');
+    const sleepEl   = document.getElementById('sleep');
 
     let videos = [];
     let idx    = 0;
@@ -256,10 +253,10 @@
       const off = timeToMinutes(scheduleOff);
       const isActive = cur >= on && cur < off;
       sleepEl.classList.toggle('active', !isActive);
-      if (isActive && active.paused && videos.length > 0) {
-        active.play().catch(() => {});
+      if (isActive && player.paused && videos.length > 0) {
+        player.play().catch(() => {});
       } else if (!isActive) {
-        active.pause();
+        player.pause();
       }
     }
 
@@ -290,29 +287,17 @@
       return ((i % videos.length) + videos.length) % videos.length;
     }
 
-    function preloadInto(el, i) {
-      el.src = '/videos/' + encodeURIComponent(videos[i]);
-      el.load(); // buffers without playing
-    }
-
-    function swapTo(i) {
+    function playAt(i) {
       idx = wrap(i);
-
-      // Bring standby (already preloaded) to front and play
-      standby.style.zIndex = 2;
-      active.style.zIndex  = 1;
-      standby.play().catch(() => {});
-
-      // Swap roles, then queue the next video into the new standby
-      [active, standby] = [standby, active];
-      preloadInto(standby, wrap(idx + 1));
+      player.src = '/videos/' + encodeURIComponent(videos[idx]);
+      player.play().catch(() => {});
+      // Silently preload the next video so it's buffered before we need it
+      const next = wrap(idx + 1);
+      preloader.src = '/videos/' + encodeURIComponent(videos[next]);
     }
 
-    // Each player fires ended only when it is the active (front) one
-    playerA.addEventListener('ended', () => { if (active === playerA) swapTo(idx + 1); });
-    playerB.addEventListener('ended', () => { if (active === playerB) swapTo(idx + 1); });
-    playerA.addEventListener('error', () => { if (active === playerA) setTimeout(() => swapTo(idx + 1), 2000); });
-    playerB.addEventListener('error', () => { if (active === playerB) setTimeout(() => swapTo(idx + 1), 2000); });
+    player.addEventListener('ended', () => playAt(idx + 1));
+    player.addEventListener('error', () => setTimeout(() => playAt(idx + 1), 2000));
 
     async function loadVideos() {
       videos = await fetch('/api/videos').then(r => r.json());
@@ -321,10 +306,7 @@
         return;
       }
       noVideo.style.display = 'none';
-      idx = 0;
-      preloadInto(active, 0);
-      active.play().catch(() => {});
-      preloadInto(standby, wrap(1));
+      playAt(0);
     }
 
     // Poll for new videos every 30 s
@@ -333,12 +315,7 @@
       if (JSON.stringify(next) !== JSON.stringify(videos)) {
         const wasEmpty = videos.length === 0;
         videos = next;
-        if (wasEmpty && videos.length > 0) {
-          idx = 0;
-          preloadInto(active, 0);
-          active.play().catch(() => {});
-          preloadInto(standby, wrap(1));
-        }
+        if (wasEmpty && videos.length > 0) playAt(0);
       }
     }, 30_000);
 
