@@ -26,9 +26,7 @@
       width: 100%;
       height: 100%;
       object-fit: cover;
-      transition: opacity 0.15s ease;
     }
-    .player.hidden { opacity: 0; }
 
     #no-video {
       position: fixed;
@@ -86,8 +84,8 @@
     .horizontal #logo {
       top: 24px;
       right: 28px;
-      max-height: 90px;
-      max-width: 200px;
+      max-height: 115px;
+      max-width: 240px;
     }
 
     .horizontal #clock {
@@ -117,8 +115,8 @@
       bottom: 130px;
       left: 50%;
       transform: translateX(-50%);
-      max-height: 110px;
-      max-width: 300px;
+      max-height: 140px;
+      max-width: 340px;
     }
 
     .vertical #weather {
@@ -202,8 +200,8 @@
 </head>
 <body>
 
-  <video id="player-a" class="player" autoplay muted playsinline></video>
-  <video id="player-b" class="player hidden" muted playsinline></video>
+  <video id="player-a" class="player" muted playsinline style="z-index:2"></video>
+  <video id="player-b" class="player" muted playsinline style="z-index:1"></video>
   <div id="gradient"></div>
 
   <div id="no-video">
@@ -288,36 +286,33 @@
     setInterval(updateWeather, 10 * 60 * 1000);
 
     // ── Video playback ─────────────────────────────────────
-    function nextIdx(i) {
-      return ((i + 1) % videos.length + videos.length) % videos.length;
+    function wrap(i) {
+      return ((i % videos.length) + videos.length) % videos.length;
     }
 
-    function preload(el, i) {
+    function preloadInto(el, i) {
       el.src = '/videos/' + encodeURIComponent(videos[i]);
-      el.load();
+      el.load(); // buffers without playing
     }
 
     function swapTo(i) {
-      idx = ((i % videos.length) + videos.length) % videos.length;
+      idx = wrap(i);
 
-      // standby already has this video preloaded — just show it
-      standby.classList.remove('hidden');
-      active.classList.add('hidden');
+      // Bring standby (already preloaded) to front and play
+      standby.style.zIndex = 2;
+      active.style.zIndex  = 1;
       standby.play().catch(() => {});
 
-      // swap roles
+      // Swap roles, then queue the next video into the new standby
       [active, standby] = [standby, active];
-
-      // preload the one after next into the new standby
-      preload(standby, nextIdx(idx));
+      preloadInto(standby, wrap(idx + 1));
     }
 
-    function setupListeners(el) {
-      el.addEventListener('ended', () => swapTo(idx + 1));
-      el.addEventListener('error', () => setTimeout(() => swapTo(idx + 1), 2000));
-    }
-    setupListeners(playerA);
-    setupListeners(playerB);
+    // Each player fires ended only when it is the active (front) one
+    playerA.addEventListener('ended', () => { if (active === playerA) swapTo(idx + 1); });
+    playerB.addEventListener('ended', () => { if (active === playerB) swapTo(idx + 1); });
+    playerA.addEventListener('error', () => { if (active === playerA) setTimeout(() => swapTo(idx + 1), 2000); });
+    playerB.addEventListener('error', () => { if (active === playerB) setTimeout(() => swapTo(idx + 1), 2000); });
 
     async function loadVideos() {
       videos = await fetch('/api/videos').then(r => r.json());
@@ -327,10 +322,9 @@
       }
       noVideo.style.display = 'none';
       idx = 0;
-      // Load first video into active player and preload second into standby
-      preload(active, 0);
+      preloadInto(active, 0);
       active.play().catch(() => {});
-      if (videos.length > 1) preload(standby, 1);
+      preloadInto(standby, wrap(1));
     }
 
     // Poll for new videos every 30 s
@@ -339,7 +333,12 @@
       if (JSON.stringify(next) !== JSON.stringify(videos)) {
         const wasEmpty = videos.length === 0;
         videos = next;
-        if (wasEmpty && videos.length > 0) { preload(active, 0); active.play().catch(() => {}); }
+        if (wasEmpty && videos.length > 0) {
+          idx = 0;
+          preloadInto(active, 0);
+          active.play().catch(() => {});
+          preloadInto(standby, wrap(1));
+        }
       }
     }, 30_000);
 
