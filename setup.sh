@@ -96,50 +96,20 @@ StandardError=journal
 WantedBy=multi-user.target
 EOF
 
-# ── 6. Systemd service — Chromium kiosk ─────────────────────
-echo "→ Creating signage-kiosk systemd service..."
-sudo tee /etc/systemd/system/signage-kiosk.service > /dev/null <<EOF
-[Unit]
-Description=Signage Chromium kiosk
-After=graphical.target signage-server.service
-Requires=signage-server.service
-
-[Service]
-User=$SERVICE_USER
-Environment=DISPLAY=:0
-Environment=XAUTHORITY=/home/$SERVICE_USER/.Xauthority
-ExecStartPre=/bin/sleep 5
-ExecStart=/usr/bin/chromium \\
-    --kiosk \\
-    --noerrdialogs \\
-    --disable-infobars \\
-    --no-first-run \\
-    --disable-session-crashed-bubble \\
-    --disable-restore-session-state \\
-    --autoplay-policy=no-user-gesture-required \\
-    http://localhost:8080
-Restart=always
-RestartSec=8
-
-[Install]
-WantedBy=graphical.target
+# ── 6. LXDE autostart — Chromium kiosk ─────────────────────
+echo "→ Setting up Chromium kiosk autostart..."
+LXDE_AUTOSTART_DIR="$HOME/.config/lxsession/LXDE-pi"
+mkdir -p "$LXDE_AUTOSTART_DIR"
+cat > "$LXDE_AUTOSTART_DIR/autostart" <<'EOF'
+@xset s off
+@xset -dpms
+@xset s noblank
+@unclutter -idle 1 -root
+@bash -c 'sleep 8 && chromium --kiosk --noerrdialogs --disable-infobars --no-first-run --disable-session-crashed-bubble --disable-restore-session-state --autoplay-policy=no-user-gesture-required http://localhost:8080'
 EOF
 
 # ── 7. Disable screen blanking ──────────────────────────────
 echo "→ Disabling screen sleep / blanking..."
-AUTOSTART_DIR="$HOME/.config/autostart"
-mkdir -p "$AUTOSTART_DIR"
-cat > "$AUTOSTART_DIR/disable-blanking.desktop" <<EOF
-[Desktop Entry]
-Type=Application
-Name=Disable screen blanking
-Exec=xset s off -dpms
-Hidden=false
-NoDisplay=false
-X-GNOME-Autostart-enabled=true
-EOF
-
-# Also add to Xsession for good measure
 XSESSION="$HOME/.xsessionrc"
 grep -qxF 'xset s off -dpms' "$XSESSION" 2>/dev/null || echo 'xset s off -dpms' >> "$XSESSION"
 grep -qxF 'xset -dpms' "$XSESSION" 2>/dev/null || echo 'xset -dpms' >> "$XSESSION"
@@ -148,7 +118,6 @@ grep -qxF 'xset -dpms' "$XSESSION" 2>/dev/null || echo 'xset -dpms' >> "$XSESSIO
 echo "→ Enabling services..."
 sudo systemctl daemon-reload
 sudo systemctl enable signage-server.service
-sudo systemctl enable signage-kiosk.service
 sudo systemctl start signage-server.service
 
 echo ""

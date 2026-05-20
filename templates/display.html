@@ -170,6 +170,18 @@
     .vertical #sd-message { font-size: clamp(20px, 5vw, 40px); }
     .vertical #sd-image   { max-height: clamp(50px, 9vw, 100px); max-width: 72vw; }
 
+    /* ── Top/bottom gradient vignette ─────────────────────── */
+    #gradient {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background:
+        linear-gradient(to bottom, rgba(0,0,0,0.55) 0%, transparent 28%),
+        linear-gradient(to top,    rgba(0,0,0,0.55) 0%, transparent 28%);
+      z-index: 1;
+    }
+    #overlay { z-index: 2; }
+
     /* ── Sleep screen ──────────────────────────────────────── */
     #sleep {
       position: fixed;
@@ -189,6 +201,7 @@
 <body>
 
   <video id="player" autoplay muted playsinline></video>
+  <div id="gradient"></div>
 
   <div id="no-video">
     No videos loaded
