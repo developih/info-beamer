@@ -36,6 +36,7 @@ if [ ! -f "$REPO_DIR/config.json" ]; then
   "city": "Buenos Aires",
   "weather_api_key": "",
   "orientation": "horizontal",
+  "logo_size": 100,
   "schedule_on": "07:00",
   "schedule_off": "19:00"
 }

@@ -366,6 +366,13 @@
       scheduleOff = cfg.schedule_off || '19:00';
 
       if (cfg.logo_url) {
+        const scale = (cfg.logo_size || 100) / 100;
+        if (cfg.orientation === 'vertical') {
+          logoEl.style.transform = `translateX(-50%) scale(${scale})`;
+        } else {
+          logoEl.style.transformOrigin = 'top right';
+          logoEl.style.transform = `scale(${scale})`;
+        }
         logoEl.src = cfg.logo_url + '?t=' + Date.now();
         logoEl.onload  = () => logoEl.classList.remove('hidden');
         logoEl.onerror = () => logoEl.classList.add('hidden');

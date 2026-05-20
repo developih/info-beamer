@@ -159,6 +159,16 @@
           <option value="vertical"   {% if config.orientation == 'vertical'   %}selected{% endif %}>Vertical (portrait)</option>
         </select>
       </label>
+      <label>
+        Logo size
+        <div style="display:flex; align-items:center; gap:14px; margin-top:4px;">
+          <input type="range" id="cfg-logo-size" min="30" max="150" step="5"
+            value="{{ config.logo_size or 100 }}"
+            style="flex:1; accent-color:var(--accent);"
+            oninput="document.getElementById('logo-size-val').textContent = this.value + '%'" />
+          <span id="logo-size-val" style="min-width:40px; color:var(--text); font-size:14px;">{{ config.logo_size or 100 }}%</span>
+        </div>
+      </label>
       <div style="display:flex; gap:14px;">
         <label style="flex:1;">
           Turn ON at
@@ -229,7 +239,7 @@
 
 </div><!-- /page -->
 
-<div style="text-align:center; margin-top:32px; color:#333; font-size:12px;">v1.2.7</div>
+<div style="text-align:center; margin-top:32px; color:#333; font-size:12px;">v1.2.8</div>
 
 <div id="toast"></div>
 
@@ -250,6 +260,7 @@
       city:            document.getElementById('cfg-city').value.trim(),
       weather_api_key: document.getElementById('cfg-apikey').value.trim(),
       orientation:     document.getElementById('cfg-orientation').value,
+      logo_size:       parseInt(document.getElementById('cfg-logo-size').value),
       schedule_on:     document.getElementById('cfg-on').value,
       schedule_off:    document.getElementById('cfg-off').value,
     };

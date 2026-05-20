@@ -79,7 +79,8 @@ def api_config():
     return jsonify(
         {
             "orientation": cfg.get("orientation", "horizontal"),
-            "logo_url": f"/assets/{logo}" if logo else None,
+            "logo_url":  f"/assets/{logo}" if logo else None,
+            "logo_size": cfg.get("logo_size", 100),
             "schedule_on":  cfg.get("schedule_on",  "07:00"),
             "schedule_off": cfg.get("schedule_off", "19:00"),
         }
@@ -215,7 +216,7 @@ def delete_video(filename):
 def update_config():
     cfg = load_config()
     data = request.get_json() or {}
-    for key in ("city", "weather_api_key", "orientation", "schedule_on", "schedule_off"):
+    for key in ("city", "weather_api_key", "orientation", "schedule_on", "schedule_off", "logo_size"):
         if key in data:
             cfg[key] = data[key]
     save_config(cfg)
