@@ -1,5 +1,4 @@
 # Pi-specific — managed locally, never overwritten by git pull
-config.json
 assets/logo.*
 
 # Video files — too large for git, managed via admin panel
