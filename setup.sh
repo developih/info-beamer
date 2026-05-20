@@ -96,16 +96,31 @@ StandardError=journal
 WantedBy=multi-user.target
 EOF
 
-# ── 6. LXDE autostart — Chromium kiosk ─────────────────────
+# ── 6. Chromium kiosk autostart ─────────────────────────────
 echo "→ Setting up Chromium kiosk autostart..."
-LXDE_AUTOSTART_DIR="$HOME/.config/lxsession/LXDE-pi"
-mkdir -p "$LXDE_AUTOSTART_DIR"
-cat > "$LXDE_AUTOSTART_DIR/autostart" <<'EOF'
+
+# XDG standard — works on any desktop environment
+AUTOSTART_DIR="$HOME/.config/autostart"
+mkdir -p "$AUTOSTART_DIR"
+cat > "$AUTOSTART_DIR/signage-kiosk.desktop" <<'EOF'
+[Desktop Entry]
+Type=Application
+Name=Signage Kiosk
+Exec=bash -c 'sleep 10 && chromium --kiosk --noerrdialogs --disable-infobars --no-first-run --disable-session-crashed-bubble --disable-restore-session-state --autoplay-policy=no-user-gesture-required http://localhost:8080'
+Hidden=false
+NoDisplay=false
+X-GNOME-Autostart-enabled=true
+EOF
+
+# LXDE-pi session autostart (belt-and-suspenders)
+LXDE_DIR="$HOME/.config/lxsession/LXDE-pi"
+mkdir -p "$LXDE_DIR"
+cat > "$LXDE_DIR/autostart" <<'EOF'
 @xset s off
 @xset -dpms
 @xset s noblank
 @unclutter -idle 1 -root
-@bash -c 'sleep 8 && chromium --kiosk --noerrdialogs --disable-infobars --no-first-run --disable-session-crashed-bubble --disable-restore-session-state --autoplay-policy=no-user-gesture-required http://localhost:8080'
+@bash -c 'sleep 10 && chromium --kiosk --noerrdialogs --disable-infobars --no-first-run --disable-session-crashed-bubble --disable-restore-session-state --autoplay-policy=no-user-gesture-required http://localhost:8080'
 EOF
 
 # ── 7. Disable screen blanking ──────────────────────────────
