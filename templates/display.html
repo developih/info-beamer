@@ -26,7 +26,10 @@
       width: 100%;
       height: 100%;
       object-fit: cover;
+      transition: opacity 0.5s ease;
     }
+    #player-a { opacity: 1; }
+    #player-b { opacity: 0; }
 
     #no-video {
       position: fixed;
@@ -200,8 +203,8 @@
 </head>
 <body>
 
-  <video id="player" class="player" muted playsinline preload="auto"></video>
-  <video id="preloader" muted preload="auto" style="display:none"></video>
+  <video id="player-a" class="player" muted playsinline preload="auto"></video>
+  <video id="player-b" class="player" muted playsinline preload="auto"></video>
   <div id="gradient"></div>
 
   <div id="no-video">
@@ -225,17 +228,21 @@
   <div id="sleep"></div>
 
   <script>
-    const player    = document.getElementById('player');
-    const preloader = document.getElementById('preloader');
-    const overlay   = document.getElementById('overlay');
-    const noVideo   = document.getElementById('no-video');
-    const logoEl    = document.getElementById('logo');
-    const clockEl   = document.getElementById('clock');
-    const cityEl    = document.getElementById('city');
-    const tempEl    = document.getElementById('temp');
-    const sleepEl   = document.getElementById('sleep');
+    const playerA  = document.getElementById('player-a');
+    const playerB  = document.getElementById('player-b');
+    const overlay  = document.getElementById('overlay');
+    const noVideo  = document.getElementById('no-video');
+    const logoEl   = document.getElementById('logo');
+    const clockEl  = document.getElementById('clock');
+    const cityEl   = document.getElementById('city');
+    const tempEl   = document.getElementById('temp');
+    const sleepEl  = document.getElementById('sleep');
 
-    let videos = [];
+    let active  = playerA;
+    let standby = playerB;
+    let videos  = [];
+    let fading  = false;
+    const FADE  = 0.5; // crossfade duration in seconds
     let idx    = 0;
     let scheduleOn  = '07:00';
     let scheduleOff = '19:00';
@@ -253,10 +260,11 @@
       const off = timeToMinutes(scheduleOff);
       const isActive = cur >= on && cur < off;
       sleepEl.classList.toggle('active', !isActive);
-      if (isActive && player.paused && videos.length > 0) {
-        player.play().catch(() => {});
+      if (isActive && active.paused && videos.length > 0) {
+        active.play().catch(() => {});
       } else if (!isActive) {
-        player.pause();
+        active.pause();
+        standby.pause();
       }
     }
 
@@ -287,17 +295,49 @@
       return ((i % videos.length) + videos.length) % videos.length;
     }
 
-    function playAt(i) {
-      idx = wrap(i);
-      player.src = '/videos/' + encodeURIComponent(videos[idx]);
-      player.play().catch(() => {});
-      // Silently preload the next video so it's buffered before we need it
-      const next = wrap(idx + 1);
-      preloader.src = '/videos/' + encodeURIComponent(videos[next]);
+    function loadInto(el, i) {
+      el.src = '/videos/' + encodeURIComponent(videos[i]);
+      el.load();
     }
 
-    player.addEventListener('ended', () => playAt(idx + 1));
-    player.addEventListener('error', () => setTimeout(() => playAt(idx + 1), 2000));
+    function crossfade() {
+      if (fading) return;
+      fading = true;
+      idx = wrap(idx + 1);
+
+      // Fade active out, standby in — standby is already preloaded at frame 0
+      active.style.opacity  = '0';
+      standby.style.opacity = '1';
+      standby.play().catch(() => {});
+
+      setTimeout(() => {
+        active.pause();
+        [active, standby] = [standby, active];
+        // Preload the video after next into the new standby
+        loadInto(standby, wrap(idx + 1));
+        fading = false;
+      }, FADE * 1000 + 100);
+    }
+
+    // Watch each player; trigger crossfade when FADE seconds remain
+    [playerA, playerB].forEach(el => {
+      el.addEventListener('timeupdate', () => {
+        if (el !== active || fading || !isFinite(el.duration)) return;
+        if (el.duration - el.currentTime <= FADE) crossfade();
+      });
+      el.addEventListener('error', () => {
+        if (el === active) setTimeout(crossfade, 1000);
+      });
+    });
+
+    function startPlayback() {
+      idx = 0;
+      loadInto(active,  0);
+      loadInto(standby, wrap(1));
+      active.style.opacity  = '1';
+      standby.style.opacity = '0';
+      active.play().catch(() => {});
+    }
 
     async function loadVideos() {
       videos = await fetch('/api/videos').then(r => r.json());
@@ -306,7 +346,7 @@
         return;
       }
       noVideo.style.display = 'none';
-      playAt(0);
+      startPlayback();
     }
 
     // Poll for new videos every 30 s
@@ -315,7 +355,7 @@
       if (JSON.stringify(next) !== JSON.stringify(videos)) {
         const wasEmpty = videos.length === 0;
         videos = next;
-        if (wasEmpty && videos.length > 0) playAt(0);
+        if (wasEmpty && videos.length > 0) startPlayback();
       }
     }, 30_000);
 
