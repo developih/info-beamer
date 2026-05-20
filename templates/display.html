@@ -411,6 +411,15 @@
       const now = new Date();
       const msToMidnight = Math.max(1000, new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1) - now);
       setTimeout(() => { loadSpecialDay(); setInterval(loadSpecialDay, 86_400_000); }, msToMidnight);
+
+      // Config watcher — reload page if admin changes anything
+      const cfgFingerprint = JSON.stringify(cfg);
+      setInterval(async () => {
+        try {
+          const latest = await fetch('/api/config', { cache: 'no-store' }).then(r => r.json());
+          if (JSON.stringify(latest) !== cfgFingerprint) window.location.reload();
+        } catch (_) {}
+      }, 30_000);
     }
 
     init();
