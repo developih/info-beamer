@@ -36,7 +36,15 @@ cp -r "$SCRIPT_DIR/templates"    "$INSTALL_DIR/"
 mkdir -p "$INSTALL_DIR/videos" "$INSTALL_DIR/assets"
 
 if [ ! -f "$INSTALL_DIR/config.json" ]; then
-    cp "$SCRIPT_DIR/config.json" "$INSTALL_DIR/"
+    cat > "$INSTALL_DIR/config.json" <<'JSEOF'
+{
+  "city": "Buenos Aires",
+  "weather_api_key": "",
+  "orientation": "horizontal",
+  "schedule_on": "07:00",
+  "schedule_off": "19:00"
+}
+JSEOF
     echo "   config.json created — edit it or use the admin panel."
 else
     echo "   config.json already exists — keeping your settings."
