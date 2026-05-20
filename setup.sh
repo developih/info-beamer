@@ -129,7 +129,20 @@ XSESSION="$HOME/.xsessionrc"
 grep -qxF 'xset s off -dpms' "$XSESSION" 2>/dev/null || echo 'xset s off -dpms' >> "$XSESSION"
 grep -qxF 'xset -dpms' "$XSESSION" 2>/dev/null || echo 'xset -dpms' >> "$XSESSION"
 
-# ── 8. Enable & start services ───────────────────────────────
+# ── 8. Auto-pull cron job (every 5 min) ─────────────────────
+echo "→ Setting up auto-pull cron job..."
+chmod +x "$SCRIPT_DIR/auto-pull.sh"
+CRON_CMD="*/5 * * * * $SCRIPT_DIR/auto-pull.sh >> $SCRIPT_DIR/pull.log 2>&1"
+( crontab -l 2>/dev/null | grep -v 'auto-pull.sh'; echo "$CRON_CMD" ) | crontab -
+
+# Sudoers rule so cron can restart the server without a password
+SUDOERS_LINE="$SERVICE_USER ALL=(ALL) NOPASSWD: /bin/systemctl restart signage-server"
+if ! sudo grep -qF "$SERVICE_USER ALL=(ALL) NOPASSWD" /etc/sudoers; then
+    echo "$SUDOERS_LINE" | sudo tee /etc/sudoers.d/signage > /dev/null
+    sudo chmod 0440 /etc/sudoers.d/signage
+fi
+
+# ── 9. Enable & start services ───────────────────────────────
 echo "→ Enabling services..."
 sudo systemctl daemon-reload
 sudo systemctl enable signage-server.service
