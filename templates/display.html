@@ -299,17 +299,19 @@
       return ((i % videos.length) + videos.length) % videos.length;
     }
 
-    // Freeze last frame onto canvas, show it while next video loads
-    function holdLastFrame() {
-      frameHold.width  = player.videoWidth  || frameHold.width;
-      frameHold.height = player.videoHeight || frameHold.height;
-      holdCtx.drawImage(player, 0, 0, frameHold.width, frameHold.height);
-      frameHold.style.display = 'block';
-    }
+    // Keep canvas in sync with the video on every frame — so it's always ready
+    player.addEventListener('loadedmetadata', () => {
+      frameHold.width  = player.videoWidth;
+      frameHold.height = player.videoHeight;
+    });
+    player.addEventListener('timeupdate', () => {
+      if (frameHold.width > 0) {
+        holdCtx.drawImage(player, 0, 0, frameHold.width, frameHold.height);
+      }
+    });
 
-    function releaseHold() {
-      frameHold.style.display = 'none';
-    }
+    function showHold()    { frameHold.style.display = 'block'; }
+    function releaseHold() { frameHold.style.display = 'none';  }
 
     let transitioning = false;
 
@@ -317,13 +319,12 @@
       idx = wrap(i);
       player.src = '/videos/' + encodeURIComponent(videos[idx]);
       player.load();
-      // play() is called from the canplay handler once data is ready
     }
 
     function playNext() {
       if (transitioning) return;
       transitioning = true;
-      holdLastFrame();
+      showHold();       // canvas already has the last frame from timeupdate
       loadVideo(idx + 1);
     }
 
