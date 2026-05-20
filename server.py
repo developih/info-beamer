@@ -85,14 +85,21 @@ def api_config():
     )
 
 
+def get_ordered_videos():
+    on_disk = {
+        f for f in os.listdir(VIDEOS_DIR)
+        if f.rsplit(".", 1)[-1].lower() in VIDEO_EXTENSIONS
+    }
+    cfg = load_config()
+    order = cfg.get("video_order", [])
+    result = [f for f in order if f in on_disk]
+    result += sorted(f for f in on_disk if f not in result)
+    return result
+
+
 @app.route("/api/videos")
 def api_videos():
-    files = sorted(
-        f
-        for f in os.listdir(VIDEOS_DIR)
-        if f.rsplit(".", 1)[-1].lower() in VIDEO_EXTENSIONS
-    )
-    return jsonify(files)
+    return jsonify(get_ordered_videos())
 
 
 @app.route("/api/weather")
@@ -148,11 +155,7 @@ def serve_overlays(filename):
 @app.route("/admin")
 def admin():
     cfg = load_config()
-    videos = sorted(
-        f
-        for f in os.listdir(VIDEOS_DIR)
-        if f.rsplit(".", 1)[-1].lower() in VIDEO_EXTENSIONS
-    )
+    videos = get_ordered_videos()
     logo = get_logo_filename()
     return render_template(
         "admin.html", config=cfg, videos=videos, logo_url=f"/assets/{logo}" if logo else None
@@ -186,6 +189,16 @@ def upload_logo():
         if os.path.exists(old):
             os.remove(old)
     f.save(os.path.join(ASSETS_DIR, f"logo.{ext}"))
+    return jsonify({"success": True})
+
+
+@app.route("/admin/reorder-videos", methods=["POST"])
+def reorder_videos():
+    data = request.get_json() or {}
+    order = data.get("order", [])
+    cfg = load_config()
+    cfg["video_order"] = order
+    save_config(cfg)
     return jsonify({"success": True})
 
 

@@ -107,9 +107,13 @@
       display: flex; align-items: center; justify-content: space-between;
       background: var(--bg); border: 1px solid var(--border);
       border-radius: 8px; padding: 10px 14px; gap: 12px;
+      cursor: grab;
     }
+    .video-item.dragging { opacity: 0.4; cursor: grabbing; }
+    .video-item.drag-over { border-color: var(--accent); background: rgba(79,124,255,0.06); }
+    .drag-handle { color: var(--muted); font-size: 16px; cursor: grab; user-select: none; flex-shrink: 0; }
     .video-name { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; }
-    .video-order { font-size: 11px; color: var(--muted); background: var(--border); border-radius: 4px; padding: 2px 7px; }
+    .video-order { font-size: 11px; color: var(--muted); background: var(--border); border-radius: 4px; padding: 2px 7px; flex-shrink: 0; }
 
     .empty-state { color: var(--muted); font-size: 13px; text-align: center; padding: 20px 0; }
 
@@ -210,7 +214,8 @@
     <div class="video-list" id="video-list">
       {% if videos %}
         {% for v in videos %}
-          <div class="video-item" id="vi-{{ loop.index0 }}">
+          <div class="video-item" id="vi-{{ loop.index0 }}" data-filename="{{ v }}" draggable="true">
+            <span class="drag-handle">⠿</span>
             <span class="video-order">#{{ loop.index }}</span>
             <span class="video-name" title="{{ v }}">{{ v }}</span>
             <button class="btn btn-danger" onclick="deleteVideo('{{ v }}', 'vi-{{ loop.index0 }}')">Remove</button>
@@ -330,13 +335,17 @@
     const count  = list.querySelectorAll('.video-item').length;
     const id     = 'vi-' + count;
     const div    = document.createElement('div');
-    div.className = 'video-item';
-    div.id        = id;
+    div.className   = 'video-item';
+    div.id          = id;
+    div.dataset.filename = filename;
+    div.setAttribute('draggable', 'true');
     div.innerHTML = `
+      <span class="drag-handle">⠿</span>
       <span class="video-order">#${count + 1}</span>
       <span class="video-name" title="${filename}">${filename}</span>
       <button class="btn btn-danger" onclick="deleteVideo('${filename}','${id}')">Remove</button>`;
     list.appendChild(div);
+    initDrag(div);
   }
 
   // ── Delete video ───────────────────────────────────────────────────────────
@@ -359,7 +368,7 @@
     }
   }
 
-  // ── Drag & drop highlight ──────────────────────────────────────────────────
+  // ── Drag & drop file upload highlight ─────────────────────────────────────
   const dz = document.getElementById('dropzone');
   dz.addEventListener('dragover',  (e) => { e.preventDefault(); dz.classList.add('over'); });
   dz.addEventListener('dragleave', ()  => dz.classList.remove('over'));
@@ -368,6 +377,50 @@
     dz.classList.remove('over');
     uploadVideos(e.dataTransfer.files);
   });
+
+  // ── Drag & drop reorder ────────────────────────────────────────────────────
+  let dragSrc = null;
+
+  function initDrag(item) {
+    item.addEventListener('dragstart', (e) => {
+      dragSrc = item;
+      item.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', ''); // required for Firefox
+    });
+    item.addEventListener('dragend', () => {
+      item.classList.remove('dragging');
+      document.querySelectorAll('.video-item').forEach(el => el.classList.remove('drag-over'));
+      saveOrder();
+    });
+    item.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      if (dragSrc === item) return;
+      item.classList.add('drag-over');
+      const rect = item.getBoundingClientRect();
+      const after = e.clientY > rect.top + rect.height / 2;
+      const list = item.parentNode;
+      if (after) list.insertBefore(dragSrc, item.nextSibling);
+      else        list.insertBefore(dragSrc, item);
+    });
+    item.addEventListener('dragleave', () => item.classList.remove('drag-over'));
+  }
+
+  async function saveOrder() {
+    const items = document.querySelectorAll('#video-list .video-item');
+    const order = Array.from(items).map(el => el.dataset.filename);
+    items.forEach((el, i) => el.querySelector('.video-order').textContent = `#${i + 1}`);
+    const r = await fetch('/admin/reorder-videos', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ order }),
+    });
+    const d = await r.json();
+    if (d.success) showToast('Order saved');
+  }
+
+  // Init drag on all existing rows
+  document.querySelectorAll('#video-list .video-item').forEach(initDrag);
 </script>
 </body>
 </html>
