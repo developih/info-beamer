@@ -5,7 +5,7 @@
 # ─────────────────────────────────────────────────────────────
 set -e
 
-INSTALL_DIR="$HOME/signage"
+REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SERVICE_USER="$(whoami)"
 
 echo ""
@@ -25,18 +25,13 @@ sudo apt-get install -y -qq \
     unclutter \
     xdotool
 
-# ── 2. Copy app files ────────────────────────────────────────
-echo "→ Copying files to $INSTALL_DIR..."
-mkdir -p "$INSTALL_DIR"
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# ── 2. Create data directories inside repo ──────────────────
+echo "→ Creating data directories..."
+mkdir -p "$REPO_DIR/videos" "$REPO_DIR/assets" "$REPO_DIR/overlays"
 
-cp "$SCRIPT_DIR/server.py"       "$INSTALL_DIR/"
-cp "$SCRIPT_DIR/requirements.txt" "$INSTALL_DIR/"
-cp -r "$SCRIPT_DIR/templates"    "$INSTALL_DIR/"
-mkdir -p "$INSTALL_DIR/videos" "$INSTALL_DIR/assets"
-
-if [ ! -f "$INSTALL_DIR/config.json" ]; then
-    cat > "$INSTALL_DIR/config.json" <<'JSEOF'
+# ── 3. Config (only created if missing) ─────────────────────
+if [ ! -f "$REPO_DIR/config.json" ]; then
+    cat > "$REPO_DIR/config.json" <<'JSEOF'
 {
   "city": "Buenos Aires",
   "weather_api_key": "",
@@ -50,13 +45,13 @@ else
     echo "   config.json already exists — keeping your settings."
 fi
 
-# ── 3. Python virtual environment ───────────────────────────
+# ── 4. Python virtual environment ───────────────────────────
 echo "→ Setting up Python environment..."
-python3 -m venv "$INSTALL_DIR/venv"
-"$INSTALL_DIR/venv/bin/pip" install -q --upgrade pip
-"$INSTALL_DIR/venv/bin/pip" install -q -r "$INSTALL_DIR/requirements.txt"
+python3 -m venv "$REPO_DIR/venv"
+"$REPO_DIR/venv/bin/pip" install -q --upgrade pip
+"$REPO_DIR/venv/bin/pip" install -q -r "$REPO_DIR/requirements.txt"
 
-# ── 4. Ask orientation ───────────────────────────────────────
+# ── 5. Ask orientation ───────────────────────────────────────
 echo ""
 echo "Which orientation is this Pi?"
 select ORI in "horizontal" "vertical"; do
@@ -64,19 +59,19 @@ select ORI in "horizontal" "vertical"; do
         horizontal|vertical)
             python3 - <<PYEOF
 import json, os
-cfg_path = os.path.expanduser('$INSTALL_DIR/config.json')
+cfg_path = '$REPO_DIR/config.json'
 with open(cfg_path) as f:
     cfg = json.load(f)
 cfg['orientation'] = '$ORI'
 with open(cfg_path, 'w') as f:
     json.dump(cfg, f, indent=2)
-print(f'   Orientation set to: $ORI')
+print('   Orientation set to: $ORI')
 PYEOF
             break;;
     esac
 done
 
-# ── 5. Systemd service — server ──────────────────────────────
+# ── 6. Systemd service — server ──────────────────────────────
 echo "→ Creating signage-server systemd service..."
 sudo tee /etc/systemd/system/signage-server.service > /dev/null <<EOF
 [Unit]
@@ -85,8 +80,8 @@ After=network.target
 
 [Service]
 User=$SERVICE_USER
-WorkingDirectory=$INSTALL_DIR
-ExecStart=$INSTALL_DIR/venv/bin/python $INSTALL_DIR/server.py
+WorkingDirectory=$REPO_DIR
+ExecStart=$REPO_DIR/venv/bin/python $REPO_DIR/server.py
 Restart=always
 RestartSec=5
 StandardOutput=journal
@@ -96,7 +91,7 @@ StandardError=journal
 WantedBy=multi-user.target
 EOF
 
-# ── 6. Chromium kiosk autostart ─────────────────────────────
+# ── 7. Chromium kiosk autostart ─────────────────────────────
 echo "→ Setting up Chromium kiosk autostart..."
 
 # XDG standard — works on any desktop environment
@@ -123,26 +118,26 @@ cat > "$LXDE_DIR/autostart" <<'EOF'
 @bash -c 'sleep 10 && chromium --kiosk --noerrdialogs --disable-infobars --no-first-run --disable-session-crashed-bubble --disable-restore-session-state --autoplay-policy=no-user-gesture-required http://localhost:8080'
 EOF
 
-# ── 7. Disable screen blanking ──────────────────────────────
+# ── 8. Disable screen blanking ──────────────────────────────
 echo "→ Disabling screen sleep / blanking..."
 XSESSION="$HOME/.xsessionrc"
 grep -qxF 'xset s off -dpms' "$XSESSION" 2>/dev/null || echo 'xset s off -dpms' >> "$XSESSION"
 grep -qxF 'xset -dpms' "$XSESSION" 2>/dev/null || echo 'xset -dpms' >> "$XSESSION"
 
-# ── 8. Auto-pull cron job (every 5 min) ─────────────────────
+# ── 9. Auto-pull cron job (every 5 min) ─────────────────────
 echo "→ Setting up auto-pull cron job..."
-chmod +x "$SCRIPT_DIR/auto-pull.sh"
-CRON_CMD="*/5 * * * * $SCRIPT_DIR/auto-pull.sh >> $SCRIPT_DIR/pull.log 2>&1"
+chmod +x "$REPO_DIR/auto-pull.sh"
+CRON_CMD="*/5 * * * * $REPO_DIR/auto-pull.sh >> $REPO_DIR/pull.log 2>&1"
 ( crontab -l 2>/dev/null | grep -v 'auto-pull.sh'; echo "$CRON_CMD" ) | crontab -
 
 # Sudoers rule so cron can restart the server without a password
-SUDOERS_LINE="$SERVICE_USER ALL=(ALL) NOPASSWD: /bin/systemctl restart signage-server"
-if ! sudo grep -qF "$SERVICE_USER ALL=(ALL) NOPASSWD" /etc/sudoers; then
-    echo "$SUDOERS_LINE" | sudo tee /etc/sudoers.d/signage > /dev/null
+if ! sudo grep -qF "signage" /etc/sudoers.d/signage 2>/dev/null; then
+    echo "$SERVICE_USER ALL=(ALL) NOPASSWD: /bin/systemctl restart signage-server" \
+        | sudo tee /etc/sudoers.d/signage > /dev/null
     sudo chmod 0440 /etc/sudoers.d/signage
 fi
 
-# ── 9. Enable & start services ───────────────────────────────
+# ── 10. Enable & start services ──────────────────────────────
 echo "→ Enabling services..."
 sudo systemctl daemon-reload
 sudo systemctl enable signage-server.service
