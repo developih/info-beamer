@@ -20,23 +20,12 @@
     }
 
     /* ── Video ── */
-    #player {
+    .player {
       position: fixed;
       inset: 0;
       width: 100%;
       height: 100%;
       object-fit: cover;
-    }
-
-    /* Last-frame hold — shown during the gap between videos */
-    #frame-hold {
-      position: fixed;
-      inset: 0;
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      display: none;
-      z-index: 1;
     }
 
     #no-video {
@@ -211,8 +200,8 @@
 </head>
 <body>
 
-  <video id="player" muted playsinline preload="auto"></video>
-  <canvas id="frame-hold"></canvas>
+  <video id="player-a" class="player" muted playsinline preload="auto" style="z-index:2"></video>
+  <video id="player-b" class="player" muted playsinline preload="auto" style="z-index:1"></video>
   <div id="gradient"></div>
 
   <div id="no-video">
@@ -236,17 +225,18 @@
   <div id="sleep"></div>
 
   <script>
-    const player    = document.getElementById('player');
-    const frameHold = document.getElementById('frame-hold');
-    const overlay   = document.getElementById('overlay');
-    const noVideo   = document.getElementById('no-video');
-    const logoEl    = document.getElementById('logo');
-    const clockEl   = document.getElementById('clock');
-    const cityEl    = document.getElementById('city');
-    const tempEl    = document.getElementById('temp');
-    const sleepEl   = document.getElementById('sleep');
-    const holdCtx   = frameHold.getContext('2d');
+    const pA      = document.getElementById('player-a');
+    const pB      = document.getElementById('player-b');
+    const overlay = document.getElementById('overlay');
+    const noVideo = document.getElementById('no-video');
+    const logoEl  = document.getElementById('logo');
+    const clockEl = document.getElementById('clock');
+    const cityEl  = document.getElementById('city');
+    const tempEl  = document.getElementById('temp');
+    const sleepEl = document.getElementById('sleep');
 
+    let cur = pA;   // front player — currently visible
+    let nxt = pB;   // back player  — preloading next video
     let videos = [];
     let idx    = 0;
     let scheduleOn  = '07:00';
@@ -265,10 +255,10 @@
       const off = timeToMinutes(scheduleOff);
       const isActive = cur >= on && cur < off;
       sleepEl.classList.toggle('active', !isActive);
-      if (isActive && player.paused && videos.length > 0) {
-        player.play().catch(() => {});
+      if (isActive && cur.paused && videos.length > 0) {
+        cur.play().catch(() => {});
       } else if (!isActive) {
-        player.pause();
+        cur.pause();
       }
     }
 
@@ -299,40 +289,26 @@
       return ((i % videos.length) + videos.length) % videos.length;
     }
 
-    // Keep canvas in sync with the video on every frame — so it's always ready
-    player.addEventListener('loadedmetadata', () => {
-      frameHold.width  = player.videoWidth;
-      frameHold.height = player.videoHeight;
-    });
-    player.addEventListener('timeupdate', () => {
-      if (frameHold.width > 0) {
-        holdCtx.drawImage(player, 0, 0, frameHold.width, frameHold.height);
-      }
-    });
-
-    function showHold()    { frameHold.style.display = 'block'; }
-    function releaseHold() { frameHold.style.display = 'none';  }
-
-    let transitioning = false;
-
-    function loadVideo(i) {
-      idx = wrap(i);
-      player.src = '/videos/' + encodeURIComponent(videos[idx]);
-      player.load();
+    function preloadInto(el, i) {
+      el.src = '/videos/' + encodeURIComponent(videos[i]);
+      el.load();
     }
 
-    function playNext() {
-      if (transitioning) return;
-      transitioning = true;
-      showHold();       // canvas already has the last frame from timeupdate
-      loadVideo(idx + 1);
+    function swap() {
+      idx = wrap(idx + 1);
+      // nxt is already preloaded — bring it to front instantly
+      nxt.style.zIndex = 2;
+      cur.style.zIndex = 1;
+      nxt.play().catch(() => {
+        nxt.addEventListener('canplay', () => nxt.play().catch(() => {}), { once: true });
+      });
+      [cur, nxt] = [nxt, cur];
+      // cur is now the old front player — reuse it to preload the next video
+      preloadInto(nxt, wrap(idx + 1));
     }
 
-    // Only play when the browser has enough data — avoids the rejected-play error
-    player.addEventListener('canplay', () => player.play().catch(() => {}));
-    // Release the frozen frame once the new video is actually rendering
-    player.addEventListener('playing', () => { releaseHold(); transitioning = false; });
-    player.addEventListener('ended',   playNext);
+    pA.addEventListener('ended', () => { if (cur === pA) swap(); });
+    pB.addEventListener('ended', () => { if (cur === pB) swap(); });
 
     async function loadVideos() {
       videos = await fetch('/api/videos').then(r => r.json());
@@ -341,7 +317,10 @@
         return;
       }
       noVideo.style.display = 'none';
-      loadVideo(0);
+      idx = 0;
+      preloadInto(cur, 0);
+      preloadInto(nxt, wrap(1));
+      cur.addEventListener('canplay', () => cur.play().catch(() => {}), { once: true });
     }
 
     // Poll for new videos every 30 s
@@ -350,7 +329,12 @@
       if (JSON.stringify(next) !== JSON.stringify(videos)) {
         const wasEmpty = videos.length === 0;
         videos = next;
-        if (wasEmpty && videos.length > 0) loadVideo(0);
+        if (wasEmpty && videos.length > 0) {
+          idx = 0;
+          preloadInto(cur, 0);
+          preloadInto(nxt, wrap(1));
+          cur.addEventListener('canplay', () => cur.play().catch(() => {}), { once: true });
+        }
       }
     }, 30_000);
 

@@ -8,6 +8,7 @@ from flask import Flask, jsonify, render_template, request, send_from_directory
 from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
+app.config['TEMPLATES_AUTO_RELOAD'] = True
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 VIDEOS_DIR = os.path.join(BASE_DIR, "videos")
