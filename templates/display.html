@@ -249,16 +249,17 @@
     }
 
     function checkSchedule() {
-      const now = new Date();
-      const cur = now.getHours() * 60 + now.getMinutes();
-      const on  = timeToMinutes(scheduleOn);
-      const off = timeToMinutes(scheduleOff);
-      const isActive = cur >= on && cur < off;
+      const now    = new Date();
+      const nowMin = now.getHours() * 60 + now.getMinutes();
+      const on     = timeToMinutes(scheduleOn);
+      const off    = timeToMinutes(scheduleOff);
+      const isActive = nowMin >= on && nowMin < off;
       sleepEl.classList.toggle('active', !isActive);
       if (isActive && cur.paused && videos.length > 0) {
         cur.play().catch(() => {});
       } else if (!isActive) {
         cur.pause();
+        nxt.pause();
       }
     }
 
@@ -311,7 +312,9 @@
     pB.addEventListener('ended', () => { if (cur === pB) swap(); });
 
     async function loadVideos() {
-      videos = await fetch('/api/videos').then(r => r.json());
+      try {
+        videos = await fetch('/api/videos').then(r => r.json());
+      } catch (_) { return; }
       if (videos.length === 0) {
         noVideo.style.display = 'flex';
         return;
@@ -319,23 +322,25 @@
       noVideo.style.display = 'none';
       idx = 0;
       preloadInto(cur, 0);
-      preloadInto(nxt, wrap(1));
+      if (videos.length > 1) preloadInto(nxt, 1);
       cur.addEventListener('canplay', () => cur.play().catch(() => {}), { once: true });
     }
 
     // Poll for new videos every 30 s
     setInterval(async () => {
-      const next = await fetch('/api/videos').then(r => r.json());
-      if (JSON.stringify(next) !== JSON.stringify(videos)) {
-        const wasEmpty = videos.length === 0;
-        videos = next;
-        if (wasEmpty && videos.length > 0) {
-          idx = 0;
-          preloadInto(cur, 0);
-          preloadInto(nxt, wrap(1));
-          cur.addEventListener('canplay', () => cur.play().catch(() => {}), { once: true });
+      try {
+        const next = await fetch('/api/videos').then(r => r.json());
+        if (JSON.stringify(next) !== JSON.stringify(videos)) {
+          const wasEmpty = videos.length === 0;
+          videos = next;
+          if (wasEmpty && videos.length > 0) {
+            idx = 0;
+            preloadInto(cur, 0);
+            if (videos.length > 1) preloadInto(nxt, 1);
+            cur.addEventListener('canplay', () => cur.play().catch(() => {}), { once: true });
+          }
         }
-      }
+      } catch (_) {}
     }, 30_000);
 
     // ── Special day ────────────────────────────────────────
@@ -357,9 +362,29 @@
       } catch (_) {}
     }
 
+    // ── Watchdog: reload page when server comes back after WiFi outage ────────
+    let serverDown = false;
+    setInterval(async () => {
+      try {
+        await fetch('/health', { cache: 'no-store' });
+        if (serverDown) { serverDown = false; window.location.reload(); }
+      } catch (_) {
+        serverDown = true;
+      }
+    }, 15_000);
+
     // ── Init ───────────────────────────────────────────────
     async function init() {
-      const cfg = await fetch('/api/config').then(r => r.json());
+      // Retry until server is ready (Chromium may start before Flask)
+      let cfg;
+      while (true) {
+        try {
+          cfg = await fetch('/api/config').then(r => r.json());
+          break;
+        } catch (_) {
+          await new Promise(r => setTimeout(r, 3000));
+        }
+      }
 
       overlay.className = cfg.orientation || 'horizontal';
       scheduleOn  = cfg.schedule_on  || '07:00';
@@ -382,9 +407,9 @@
       await loadSpecialDay();
       checkSchedule();
 
-      // Re-check at midnight in case the special day just started/ended
+      // Re-check special day at midnight
       const now = new Date();
-      const msToMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1) - now;
+      const msToMidnight = Math.max(1000, new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1) - now);
       setTimeout(() => { loadSpecialDay(); setInterval(loadSpecialDay, 86_400_000); }, msToMidnight);
     }
 

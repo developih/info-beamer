@@ -28,9 +28,21 @@ WEATHER_TTL = 1800  # 30 minutes
 # Helpers
 # ---------------------------------------------------------------------------
 
+_CONFIG_DEFAULTS = {
+    "city": "Buenos Aires",
+    "weather_api_key": "",
+    "orientation": "horizontal",
+    "logo_size": 100,
+    "schedule_on": "07:00",
+    "schedule_off": "19:00",
+}
+
 def load_config():
-    with open(CONFIG_FILE) as f:
-        return json.load(f)
+    try:
+        with open(CONFIG_FILE) as f:
+            return {**_CONFIG_DEFAULTS, **json.load(f)}
+    except Exception:
+        return dict(_CONFIG_DEFAULTS)
 
 
 def save_config(config):
@@ -67,6 +79,11 @@ def fetch_weather(city, api_key):
 # Display endpoints
 # ---------------------------------------------------------------------------
 
+@app.route("/health")
+def health():
+    return jsonify({"ok": True})
+
+
 @app.route("/")
 def display():
     return render_template("display.html")
@@ -88,6 +105,7 @@ def api_config():
 
 
 def get_ordered_videos():
+    os.makedirs(VIDEOS_DIR, exist_ok=True)
     on_disk = {
         f for f in os.listdir(VIDEOS_DIR)
         if f.rsplit(".", 1)[-1].lower() in VIDEO_EXTENSIONS
