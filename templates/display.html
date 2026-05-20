@@ -20,13 +20,15 @@
     }
 
     /* ── Video ── */
-    #player {
+    .player {
       position: fixed;
       inset: 0;
       width: 100%;
       height: 100%;
       object-fit: cover;
+      transition: opacity 0.15s ease;
     }
+    .player.hidden { opacity: 0; }
 
     #no-video {
       position: fixed;
@@ -200,7 +202,8 @@
 </head>
 <body>
 
-  <video id="player" autoplay muted playsinline></video>
+  <video id="player-a" class="player" autoplay muted playsinline></video>
+  <video id="player-b" class="player hidden" muted playsinline></video>
   <div id="gradient"></div>
 
   <div id="no-video">
@@ -224,7 +227,8 @@
   <div id="sleep"></div>
 
   <script>
-    const player   = document.getElementById('player');
+    const playerA  = document.getElementById('player-a');
+    const playerB  = document.getElementById('player-b');
     const overlay  = document.getElementById('overlay');
     const noVideo  = document.getElementById('no-video');
     const logoEl   = document.getElementById('logo');
@@ -232,6 +236,9 @@
     const cityEl   = document.getElementById('city');
     const tempEl   = document.getElementById('temp');
     const sleepEl  = document.getElementById('sleep');
+
+    let active = playerA;   // currently visible player
+    let standby = playerB;  // preloading next video
 
     let videos = [];
     let idx    = 0;
@@ -249,12 +256,12 @@
       const cur = now.getHours() * 60 + now.getMinutes();
       const on  = timeToMinutes(scheduleOn);
       const off = timeToMinutes(scheduleOff);
-      const active = cur >= on && cur < off;
-      sleepEl.classList.toggle('active', !active);
-      if (active && player.paused && videos.length > 0) {
-        player.play().catch(() => {});
-      } else if (!active) {
-        player.pause();
+      const isActive = cur >= on && cur < off;
+      sleepEl.classList.toggle('active', !isActive);
+      if (isActive && active.paused && videos.length > 0) {
+        active.play().catch(() => {});
+      } else if (!isActive) {
+        active.pause();
       }
     }
 
@@ -281,15 +288,36 @@
     setInterval(updateWeather, 10 * 60 * 1000);
 
     // ── Video playback ─────────────────────────────────────
-    function playAt(i) {
-      idx = ((i % videos.length) + videos.length) % videos.length;
-      player.src = '/videos/' + encodeURIComponent(videos[idx]);
-      player.load();
-      player.play().catch(() => {});
+    function nextIdx(i) {
+      return ((i + 1) % videos.length + videos.length) % videos.length;
     }
 
-    player.addEventListener('ended', () => playAt(idx + 1));
-    player.addEventListener('error', () => setTimeout(() => playAt(idx + 1), 2000));
+    function preload(el, i) {
+      el.src = '/videos/' + encodeURIComponent(videos[i]);
+      el.load();
+    }
+
+    function swapTo(i) {
+      idx = ((i % videos.length) + videos.length) % videos.length;
+
+      // standby already has this video preloaded — just show it
+      standby.classList.remove('hidden');
+      active.classList.add('hidden');
+      standby.play().catch(() => {});
+
+      // swap roles
+      [active, standby] = [standby, active];
+
+      // preload the one after next into the new standby
+      preload(standby, nextIdx(idx));
+    }
+
+    function setupListeners(el) {
+      el.addEventListener('ended', () => swapTo(idx + 1));
+      el.addEventListener('error', () => setTimeout(() => swapTo(idx + 1), 2000));
+    }
+    setupListeners(playerA);
+    setupListeners(playerB);
 
     async function loadVideos() {
       videos = await fetch('/api/videos').then(r => r.json());
@@ -298,7 +326,11 @@
         return;
       }
       noVideo.style.display = 'none';
-      playAt(0);
+      idx = 0;
+      // Load first video into active player and preload second into standby
+      preload(active, 0);
+      active.play().catch(() => {});
+      if (videos.length > 1) preload(standby, 1);
     }
 
     // Poll for new videos every 30 s
@@ -307,7 +339,7 @@
       if (JSON.stringify(next) !== JSON.stringify(videos)) {
         const wasEmpty = videos.length === 0;
         videos = next;
-        if (wasEmpty && videos.length > 0) playAt(0);
+        if (wasEmpty && videos.length > 0) { preload(active, 0); active.play().catch(() => {}); }
       }
     }, 30_000);
 
