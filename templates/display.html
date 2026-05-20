@@ -20,16 +20,24 @@
     }
 
     /* ── Video ── */
-    .player {
+    #player {
       position: fixed;
       inset: 0;
       width: 100%;
       height: 100%;
       object-fit: cover;
-      transition: opacity 0.5s ease;
     }
-    #player-a { opacity: 1; }
-    #player-b { opacity: 0; }
+
+    /* Last-frame hold — shown during the gap between videos */
+    #frame-hold {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: none;
+      z-index: 1;
+    }
 
     #no-video {
       position: fixed;
@@ -181,9 +189,9 @@
       background:
         linear-gradient(to bottom, rgba(0,0,0,0.75) 0%, transparent 28%),
         linear-gradient(to top,    rgba(0,0,0,0.75) 0%, transparent 28%);
-      z-index: 1;
+      z-index: 2;
     }
-    #overlay { z-index: 2; }
+    #overlay { z-index: 3; }
 
     /* ── Sleep screen ──────────────────────────────────────── */
     #sleep {
@@ -203,8 +211,8 @@
 </head>
 <body>
 
-  <video id="player-a" class="player" muted playsinline preload="auto"></video>
-  <video id="player-b" class="player" muted playsinline preload="auto"></video>
+  <video id="player" muted playsinline preload="auto"></video>
+  <canvas id="frame-hold"></canvas>
   <div id="gradient"></div>
 
   <div id="no-video">
@@ -228,21 +236,18 @@
   <div id="sleep"></div>
 
   <script>
-    const playerA  = document.getElementById('player-a');
-    const playerB  = document.getElementById('player-b');
-    const overlay  = document.getElementById('overlay');
-    const noVideo  = document.getElementById('no-video');
-    const logoEl   = document.getElementById('logo');
-    const clockEl  = document.getElementById('clock');
-    const cityEl   = document.getElementById('city');
-    const tempEl   = document.getElementById('temp');
-    const sleepEl  = document.getElementById('sleep');
+    const player    = document.getElementById('player');
+    const frameHold = document.getElementById('frame-hold');
+    const overlay   = document.getElementById('overlay');
+    const noVideo   = document.getElementById('no-video');
+    const logoEl    = document.getElementById('logo');
+    const clockEl   = document.getElementById('clock');
+    const cityEl    = document.getElementById('city');
+    const tempEl    = document.getElementById('temp');
+    const sleepEl   = document.getElementById('sleep');
+    const holdCtx   = frameHold.getContext('2d');
 
-    let active  = playerA;
-    let standby = playerB;
-    let videos  = [];
-    let fading  = false;
-    const FADE  = 0.5; // crossfade duration in seconds
+    let videos = [];
     let idx    = 0;
     let scheduleOn  = '07:00';
     let scheduleOff = '19:00';
@@ -260,11 +265,10 @@
       const off = timeToMinutes(scheduleOff);
       const isActive = cur >= on && cur < off;
       sleepEl.classList.toggle('active', !isActive);
-      if (isActive && active.paused && videos.length > 0) {
-        active.play().catch(() => {});
+      if (isActive && player.paused && videos.length > 0) {
+        player.play().catch(() => {});
       } else if (!isActive) {
-        active.pause();
-        standby.pause();
+        player.pause();
       }
     }
 
@@ -295,49 +299,29 @@
       return ((i % videos.length) + videos.length) % videos.length;
     }
 
-    function loadInto(el, i) {
-      el.src = '/videos/' + encodeURIComponent(videos[i]);
-      el.load();
+    // Freeze last frame onto canvas, show it while next video loads
+    function holdLastFrame() {
+      frameHold.width  = player.videoWidth  || frameHold.width;
+      frameHold.height = player.videoHeight || frameHold.height;
+      holdCtx.drawImage(player, 0, 0, frameHold.width, frameHold.height);
+      frameHold.style.display = 'block';
     }
 
-    function crossfade() {
-      if (fading) return;
-      fading = true;
+    function releaseHold() {
+      frameHold.style.display = 'none';
+    }
+
+    function playNext() {
+      holdLastFrame();
       idx = wrap(idx + 1);
-
-      // Fade active out, standby in — standby is already preloaded at frame 0
-      active.style.opacity  = '0';
-      standby.style.opacity = '1';
-      standby.play().catch(() => {});
-
-      setTimeout(() => {
-        active.pause();
-        [active, standby] = [standby, active];
-        // Preload the video after next into the new standby
-        loadInto(standby, wrap(idx + 1));
-        fading = false;
-      }, FADE * 1000 + 100);
+      player.src = '/videos/' + encodeURIComponent(videos[idx]);
+      player.play().catch(() => {});
     }
 
-    // Watch each player; trigger crossfade when FADE seconds remain
-    [playerA, playerB].forEach(el => {
-      el.addEventListener('timeupdate', () => {
-        if (el !== active || fading || !isFinite(el.duration)) return;
-        if (el.duration - el.currentTime <= FADE) crossfade();
-      });
-      el.addEventListener('error', () => {
-        if (el === active) setTimeout(crossfade, 1000);
-      });
-    });
-
-    function startPlayback() {
-      idx = 0;
-      loadInto(active,  0);
-      loadInto(standby, wrap(1));
-      active.style.opacity  = '1';
-      standby.style.opacity = '0';
-      active.play().catch(() => {});
-    }
+    // Hide the frozen frame the moment the new video's first frame is drawn
+    player.addEventListener('playing', releaseHold);
+    player.addEventListener('ended',   playNext);
+    player.addEventListener('error',   () => setTimeout(playNext, 1000));
 
     async function loadVideos() {
       videos = await fetch('/api/videos').then(r => r.json());
@@ -346,7 +330,9 @@
         return;
       }
       noVideo.style.display = 'none';
-      startPlayback();
+      idx = 0;
+      player.src = '/videos/' + encodeURIComponent(videos[0]);
+      player.play().catch(() => {});
     }
 
     // Poll for new videos every 30 s
@@ -355,7 +341,11 @@
       if (JSON.stringify(next) !== JSON.stringify(videos)) {
         const wasEmpty = videos.length === 0;
         videos = next;
-        if (wasEmpty && videos.length > 0) startPlayback();
+        if (wasEmpty && videos.length > 0) {
+          idx = 0;
+          player.src = '/videos/' + encodeURIComponent(videos[0]);
+          player.play().catch(() => {});
+        }
       }
     }, 30_000);
 
