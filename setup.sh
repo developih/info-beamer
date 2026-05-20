@@ -21,7 +21,7 @@ sudo apt-get install -y -qq \
     python3 \
     python3-pip \
     python3-venv \
-    chromium-browser \
+    chromium \
     unclutter \
     xdotool
 
@@ -109,7 +109,7 @@ User=$SERVICE_USER
 Environment=DISPLAY=:0
 Environment=XAUTHORITY=/home/$SERVICE_USER/.Xauthority
 ExecStartPre=/bin/sleep 5
-ExecStart=/usr/bin/chromium-browser \\
+ExecStart=/usr/bin/chromium \\
     --kiosk \\
     --noerrdialogs \\
     --disable-infobars \\
