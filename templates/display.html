@@ -26,6 +26,7 @@
       width: 100%;
       height: 100%;
       object-fit: cover;
+      background: #000;
     }
 
     #no-video {
@@ -297,15 +298,19 @@
 
     function swap() {
       idx = wrap(idx + 1);
-      // nxt is already preloaded — bring it to front instantly
-      nxt.style.zIndex = 2;
-      cur.style.zIndex = 1;
-      nxt.play().catch(() => {
-        nxt.addEventListener('canplay', () => nxt.play().catch(() => {}), { once: true });
-      });
-      [cur, nxt] = [nxt, cur];
-      // cur is now the old front player — reuse it to preload the next video
-      preloadInto(nxt, wrap(idx + 1));
+      function doSwap() {
+        nxt.style.zIndex = 2;
+        cur.style.zIndex = 1;
+        nxt.play().catch(() => {});
+        [cur, nxt] = [nxt, cur];
+        preloadInto(nxt, wrap(idx + 1));
+      }
+      // Wait until nxt has a decoded frame before bringing it to front
+      if (nxt.readyState >= 2) {
+        doSwap();
+      } else {
+        nxt.addEventListener('canplay', doSwap, { once: true });
+      }
     }
 
     pA.addEventListener('ended', () => { if (cur === pA) swap(); });
